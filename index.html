@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stok Master Pro - Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+    <div class="max-w-5xl mx-auto p-4 md:p-10">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Stok Master Pro</h1>
+                <p class="text-gray-500">Manajemen Inventaris Real-time</p>
+            </div>
+            <div class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
+                Status: <span id="db-status">Menghubungkan...</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-10">
+                    <h2 class="text-lg font-semibold mb-4">Tambah Barang Baru</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Barang</label>
+                            <input type="text" id="itemName" placeholder="Contoh: Kertas A4" 
+                                class="w-full border border-gray-200 p-2.5 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Stok</label>
+                            <input type="number" id="itemStock" placeholder="0" 
+                                class="w-full border border-gray-200 p-2.5 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <button onclick="addItem()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shadow-md shadow-blue-100">
+                            Simpan ke Database
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 border-b border-gray-100">
+                            <tr>
+                                <th class="px-6 py-4 text-sm font-semibold text-gray-600">Nama Barang</th>
+                                <th class="px-6 py-4 text-sm font-semibold text-gray-600">Stok</th>
+                                <th class="px-6 py-4 text-sm font-semibold text-gray-600 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable" class="divide-y divide-gray-50">
+                            </tbody>
+                    </table>
+                    <div id="loader" class="p-10 text-center text-gray-400">Memuat data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Konfigurasi Anda
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpvlQvDoKyPiiXbe_S9Cyod6xngcNIyrM",
+            authDomain: "stokmasterpro.firebaseapp.com",
+            projectId: "stokmasterpro",
+            storageBucket: "stokmasterpro.firebasestorage.app",
+            messagingSenderId: "173852334756",
+            appId: "1:173852334756:web:8826a78a85ca1f81ef2431"
+        };
+
+        // Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const colRef = collection(db, "stok_barang");
+
+        document.getElementById('db-status').innerText = "Terhubung";
+
+        // Fungsi Tambah Barang (Otomatis buat path/collection jika belum ada)
+        window.addItem = async () => {
+            const name = document.getElementById('itemName').value;
+            const stock = parseInt(document.getElementById('itemStock').value);
+
+            if (name && !isNaN(stock)) {
+                try {
+                    await addDoc(colRef, {
+                        name: name,
+                        stock: stock,
+                        updatedAt: serverTimestamp()
+                    });
+                    document.getElementById('itemName').value = '';
+                    document.getElementById('itemStock').value = '';
+                } catch (e) {
+                    console.error("Error menambahkan dokumen: ", e);
+                }
+            } else {
+                alert("Mohon isi nama dan jumlah stok dengan benar.");
+            }
+        };
+
+        // Baca Data Secara Real-time (Otomatis Update Tampilan)
+        const q = query(colRef, orderBy("updatedAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const table = document.getElementById('inventoryTable');
+            const loader = document.getElementById('loader');
+            table.innerHTML = '';
+            loader.classList.add('hidden');
+
+            snapshot.forEach(docSnap => {
+                const item = docSnap.data();
+                const id = docSnap.id;
+                
+                const row = `
+                    <tr class="hover:bg-blue-50/30 transition fade-in">
+                        <td class="px-6 py-4 font-medium text-gray-900">${item.name}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${item.stock <= 5 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
+                                ${item.stock} unit
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <button onclick="updateStock('${id}', ${item.stock + 1})" class="bg-white border border-gray-200 px-3 py-1 rounded-lg hover:bg-gray-50 text-green-600 font-bold shadow-sm">+</button>
+                            <button onclick="updateStock('${id}', ${item.stock - 1})" class="bg-white border border-gray-200 px-3 py-1 rounded-lg hover:bg-gray-50 text-red-600 font-bold shadow-sm">-</button>
+                            <button onclick="deleteItem('${id}')" class="ml-4 text-sm text-gray-400 hover:text-red-500 font-medium">Hapus</button>
+                        </td>
+                    </tr>
+                `;
+                table.innerHTML += row;
+            });
+        });
+
+        // Update Stok
+        window.updateStock = async (id, newStock) => {
+            if (newStock < 0) return;
+            const docRef = doc(db, "stok_barang", id);
+            await updateDoc(docRef, { 
+                stock: newStock,
+                updatedAt: serverTimestamp()
+            });
+        };
+
+        // Hapus Item
+        window.deleteItem = async (id) => {
+            if (confirm("Apakah Anda yakin ingin menghapus barang ini?")) {
+                await deleteDoc(doc(db, "stok_barang", id));
+            }
+        };
+    </script>
+</body>
+</html>
