@@ -1,596 +1,369 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StokMaster Pro - Manajemen Stok Terpadu</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .hidden { display: none; }
-        .active-link { @apply bg-indigo-700 text-white; }
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #4f46e5;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .modal-bg { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
-    </style>
-</head>
-<body class="bg-gray-50 min-h-screen flex flex-col md:flex-row">
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  collection,
+  onSnapshot,
+  query
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  Package, 
+  Plus, 
+  Search, 
+  AlertTriangle, 
+  CheckCircle, 
+  Archive, 
+  BarChart3, 
+  RefreshCw,
+  MoreVertical,
+  ArrowUpRight,
+  TrendingDown,
+  LayoutDashboard
+} from 'lucide-react';
 
-    <!-- Input File Tersembunyi untuk Upload Foto -->
-    <input type="file" id="imageInput" class="hidden" accept="image/*" onchange="handleImageUpload(event)">
+// KONFIGURASI FIREBASE
+const firebaseConfig = {
+  apiKey: "AIzaSyCpvlQvDoKyPiiXbe_S9Cyod6xngcNIyrM",
+  authDomain: "stokmasterpro.firebaseapp.com",
+  projectId: "stokmasterpro",
+  storageBucket: "stokmasterpro.firebasestorage.app",
+  messagingSenderId: "173852334756",
+  appId: "1:173852334756:web:8826a78a85ca1f81ef2431"
+};
 
-    <!-- Navigasi Sidebar -->
-    <aside class="w-full md:w-64 bg-indigo-900 text-white flex-shrink-0 z-50 shadow-xl">
-        <div class="p-6">
-            <h1 class="text-xl font-black flex items-center gap-2 tracking-tighter">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                STOKMASTER <span class="text-indigo-400">PRO</span>
-            </h1>
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'stok-master-pro';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState(null);
+
+  const [formData, setFormData] = useState({
+    name: "",
+    sku: "",
+    category: "Minuman",
+    stock: 0,
+    minStock: 5,
+    unit: "Pcs"
+  });
+
+  // 1. Inisialisasi Auth
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (err) {
+        setError("Koneksi gagal. Silakan periksa konfigurasi Firebase Anda.");
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Sinkronisasi Data Real-time
+  useEffect(() => {
+    if (!user) return;
+
+    // Path Koleksi: artifacts/{appId}/public/data/inventory_items
+    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'inventory_items'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const itemList = [];
+      snapshot.forEach((doc) => {
+        itemList.push({ id: doc.id, ...doc.data() });
+      });
+      // Sort berdasarkan timestamp terbaru
+      itemList.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      setItems(itemList);
+      setLoading(false);
+    }, (err) => {
+      setError("Gagal mengambil data: " + err.message);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    try {
+      const docId = formData.sku || Date.now().toString();
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory_items', docId);
+      
+      await setDoc(docRef, {
+        ...formData,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid
+      });
+
+      setIsAdding(false);
+      setFormData({ name: "", sku: "", category: "Minuman", stock: 0, minStock: 5, unit: "Pcs" });
+    } catch (err) {
+      setError("Gagal menyimpan: " + err.message);
+    }
+  };
+
+  const filteredItems = items.filter(item => 
+    item.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const lowStockCount = items.filter(item => item.stock <= item.minStock && item.stock > 0).length;
+  const outOfStockCount = items.filter(item => item.stock <= 0).length;
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-blue-100">
+      
+      {/* Sidebar Nav (Desktop) / Header (Mobile) */}
+      <nav className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-2 rounded-lg text-white">
+              <Package size={20} />
+            </div>
+            <h1 className="font-bold text-lg tracking-tight">StokMaster<span className="text-blue-600">Pro</span></h1>
+          </div>
+          
+          <div className="flex items-center gap-4 text-xs font-semibold">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${user ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
+              {user ? 'Sistem Online' : 'Offline'}
+            </div>
+          </div>
         </div>
-        <nav class="mt-4 px-4 space-y-2">
-            <button onclick="switchPage('inventory')" id="nav-inventory" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-sm font-medium hover:bg-indigo-800 active-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-                Data Inventori
-            </button>
-            <button onclick="switchPage('stock-in')" id="nav-stock-in" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-sm font-medium hover:bg-indigo-800">
-                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Barang Masuk
-            </button>
-            <button onclick="switchPage('stock-out')" id="nav-stock-out" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-sm font-medium hover:bg-indigo-800">
-                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Barang Keluar
-            </button>
-            <button onclick="switchPage('history')" id="nav-history" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-sm font-medium hover:bg-indigo-800">
-                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Riwayat Transaksi
-            </button>
-        </nav>
-        <div class="mt-10 px-8 py-4 border-t border-indigo-800 text-[10px] text-indigo-400 uppercase font-bold tracking-widest">
-            Sistem Kontrol Stok v3.3
-        </div>
-    </aside>
+      </nav>
 
-    <!-- Area Konten Utama -->
-    <div class="flex-grow flex flex-col h-screen overflow-hidden">
+      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         
-        <!-- Bar Atas -->
-        <header class="bg-white border-b border-gray-200 p-4 flex justify-between items-center shadow-sm">
-            <h2 id="page-title" class="text-lg font-bold text-gray-800">Data Inventori</h2>
-            <div class="flex items-center gap-4">
-                <div id="stats" class="hidden md:flex gap-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    <span>Item: <span id="totalItems" class="text-indigo-600">0</span></span>
-                    <span>Total Stok: <span id="totalStock" class="text-indigo-600">0</span></span>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard title="Total Barang" value={items.length} icon={<Archive className="text-blue-500" />} />
+          <StatCard title="Stok Menipis" value={lowStockCount} icon={<TrendingDown className="text-amber-500" />} color="bg-amber-50" />
+          <StatCard title="Habis" value={outOfStockCount} icon={<AlertTriangle className="text-red-500" />} color="bg-red-50" />
+          <StatCard title="Aktivitas" value="Live" icon={<BarChart3 className="text-emerald-500" />} />
+        </div>
+
+        {/* Action Bar */}
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Cari Nama Barang atau SKU..."
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => setIsAdding(!isAdding)}
+            className="w-full md:w-auto px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200"
+          >
+            {isAdding ? <XCircle size={18} /> : <Plus size={18} />}
+            {isAdding ? 'Batal' : 'Tambah Barang'}
+          </button>
+        </div>
+
+        {/* Add Form (Conditionally Rendered) */}
+        {isAdding && (
+          <div className="bg-white rounded-2xl border border-blue-100 p-6 shadow-xl shadow-blue-50 animate-in fade-in slide-in-from-top-4">
+            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <PlusCircle className="text-blue-600" size={20} /> Informasi Barang Baru
+            </h3>
+            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-4 md:col-span-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputGroup label="Nama Barang" value={formData.name} onChange={v => setFormData({...formData, name: v})} placeholder="Contoh: Kertas A4" required />
+                  <InputGroup label="SKU / Barcode" value={formData.sku} onChange={v => setFormData({...formData, sku: v})} placeholder="KS-A4-001" />
                 </div>
-                <button onclick="fetchAllData()" class="p-2 text-gray-400 hover:text-indigo-600 transition">
-                    <svg id="refreshIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Kategori</label>
+                    <select 
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                      value={formData.category}
+                      onChange={e => setFormData({...formData, category: e.target.value})}
+                    >
+                      <option>Minuman</option>
+                      <option>Makanan</option>
+                      <option>Elektronik</option>
+                      <option>ATK</option>
+                    </select>
+                  </div>
+                  <InputGroup label="Stok Saat Ini" type="number" value={formData.stock} onChange={v => setFormData({...formData, stock: parseInt(v) || 0})} />
+                  <InputGroup label="Min. Stok" type="number" value={formData.minStock} onChange={v => setFormData({...formData, minStock: parseInt(v) || 0})} />
+                </div>
+              </div>
+              <div className="flex flex-col justify-end gap-3">
+                <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
+                  Simpan ke Database
                 </button>
-            </div>
-        </header>
+                <p className="text-[10px] text-slate-400 text-center italic">Data akan disinkronkan secara real-time ke semua perangkat.</p>
+              </div>
+            </form>
+          </div>
+        )}
 
-        <div class="p-6 overflow-y-auto flex-grow bg-gray-50">
-            
-            <!-- HALAMAN: Inventori -->
-            <section id="page-inventory" class="page-content">
-                <div class="mb-6 relative max-w-2xl">
-                    <input type="text" id="searchInput" placeholder="Cari nama barang..." 
-                        class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm transition-all">
-                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                </div>
-
-                <div id="loadingOverlay" class="flex flex-col items-center justify-center py-20">
-                    <div class="loader mb-4"></div>
-                    <p class="text-gray-500 text-sm italic">Sinkronisasi data stok...</p>
-                </div>
-
-                <div id="inventoryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden"></div>
-            </section>
-
-            <!-- HALAMAN: Transaksi -->
-            <section id="page-transaction" class="page-content hidden max-w-4xl mx-auto">
-                <div class="grid md:grid-cols-5 gap-8">
-                    <div class="md:col-span-2 space-y-6">
-                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                            <h3 id="form-type-title" class="text-lg font-black text-gray-800 mb-6 uppercase tracking-tight italic">Input Barang</h3>
-                            <form id="directTransForm" class="space-y-4">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Pilih Barang</label>
-                                    <select id="itemSelect" required class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-                                        <option value="">-- Cari Barang --</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Jumlah</label>
-                                    <input type="number" id="directAmount" min="1" required class="w-full p-4 text-2xl font-black bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-center" placeholder="0">
-                                </div>
-                                <div id="previewItem" class="hidden p-3 bg-indigo-50 rounded-xl flex items-center gap-3">
-                                    <img id="previewImg" class="w-10 h-10 rounded-lg object-cover" alt="Pratinjau">
-                                    <div class="text-xs">
-                                        <p id="previewName" class="font-bold text-indigo-900"></p>
-                                        <p id="previewStock" class="text-indigo-600"></p>
-                                    </div>
-                                </div>
-                                <button type="submit" id="submitDirectBtn" class="w-full py-4 rounded-2xl font-black text-white shadow-lg transition transform active:scale-95 uppercase tracking-wider"></button>
-                            </form>
+        {/* Inventory List */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                  <th className="px-6 py-4">Barang</th>
+                  <th className="px-6 py-4">Kategori</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Stok</th>
+                  <th className="px-6 py-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400">
+                      <RefreshCw className="animate-spin mx-auto mb-2" />
+                      Memuat database...
+                    </td>
+                  </tr>
+                ) : filteredItems.length > 0 ? (
+                  filteredItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-800">{item.name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{item.sku || 'No SKU'}</span>
                         </div>
-                    </div>
-                    <div class="md:col-span-3 space-y-4">
-                         <div id="recentActivityBox" class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-                             <h4 class="text-xs font-black text-gray-400 uppercase mb-4 tracking-widest">Aktivitas Terakhir</h4>
-                             <div id="miniLog" class="space-y-3"></div>
-                         </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- HALAMAN: Riwayat -->
-            <section id="page-history" class="page-content hidden">
-                <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                        <h3 class="font-black text-gray-800 uppercase tracking-tighter italic">Log Transaksi (Sheet Riwayat)</h3>
-                        <div class="flex gap-2">
-                            <span id="historyCount" class="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold uppercase tracking-widest">0 Records</span>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-medium text-slate-500">{item.category}</td>
+                      <td className="px-6 py-4">
+                        <StockBadge stock={item.stock} min={item.minStock} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-700">{item.stock}</span>
+                          <span className="text-[10px] text-slate-400 uppercase">{item.unit || 'Pcs'}</span>
                         </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-50 text-gray-400 font-bold uppercase text-[10px]">
-                                <tr>
-                                    <th class="px-6 py-4">Waktu</th>
-                                    <th class="px-6 py-4">No. Nota</th>
-                                    <th class="px-6 py-4">Nama Barang</th>
-                                    <th class="px-6 py-4 text-center">Tipe</th>
-                                    <th class="px-6 py-4 text-right">Jumlah</th>
-                                </tr>
-                            </thead>
-                            <tbody id="historyBody" class="divide-y divide-gray-50 text-gray-600"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-        </div>
-    </div>
-
-    <!-- MODAL: Detail Produk -->
-    <div id="detailModal" class="fixed inset-0 z-[100] modal-bg flex items-center justify-center p-4 hidden">
-        <div class="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
-            <!-- Area Gambar dengan Overlay Kontrol -->
-            <div class="w-full md:w-1/2 bg-gray-100 relative group">
-                <img id="modalImg" src="" class="w-full h-full object-cover min-h-[300px]" alt="Produk">
-                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                    <button onclick="triggerImageUpload()" class="bg-white/90 hover:bg-white text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                        Ganti Foto
-                    </button>
-                    <button onclick="removeImage()" class="bg-red-500/90 hover:bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        Hapus Foto
-                    </button>
-                </div>
-            </div>
-            <div class="w-full md:w-1/2 p-8 flex flex-col">
-                <div class="flex justify-between items-start mb-6">
-                    <div>
-                        <h2 id="modalTitle" class="text-2xl font-black text-gray-800 leading-tight">Nama Produk</h2>
-                        <p id="modalCategoryInfo" class="text-[10px] text-gray-400 uppercase font-bold mt-1"></p>
-                    </div>
-                    <button onclick="closeModal()" class="text-gray-300 hover:text-gray-800 transition">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-8">
-                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
-                        <p class="text-[9px] font-black text-gray-400 uppercase">Stok Saat Ini</p>
-                        <p id="modalStock" class="text-2xl font-black text-indigo-600">0 Unit</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
-                        <p class="text-[9px] font-black text-gray-400 uppercase">Status</p>
-                        <p id="modalStatus" class="text-xs font-bold text-green-600 italic">Tersedia</p>
-                    </div>
-                </div>
-
-                <div class="mt-auto space-y-3">
-                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Aksi Stok</p>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button onclick="goToTrans('IN')" class="py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg transition uppercase tracking-wider text-[10px]">Tambah (+)</button>
-                        <button onclick="goToTrans('OUT')" class="py-4 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl shadow-lg transition uppercase tracking-wider text-[10px]">Kurangi (-)</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast -->
-    <div id="toast" class="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-2xl transform translate-y-32 opacity-0 transition-all duration-300 z-[110] text-sm font-bold border border-white/10">
-        Pesan
-    </div>
-
-    <script>
-        // URL Publik CSV dari Google Sheets
-        const inventorySheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHOTu24z6EptkQvIzgCfmncxu_H1Dw1pl8874CGTxgZvLZPVXqdNFDFox9SGTTH2wHdbs1hpJWDqb2/pub?gid=838278372&single=true&output=csv";
-        const historySheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHOTu24z6EptkQvIzgCfmncxu_H1Dw1pl8874CGTxgZvLZPVXqdNFDFox9SGTTH2wHdbs1hpJWDqb2/pub?gid=1513062448&single=true&output=csv";
-        
-        let inventory = [];
-        let transactionHistory = []; 
-        let currentPage = 'inventory';
-        let currentTransactionType = 'IN';
-        let selectedItemId = null;
-
-        async function fetchAllData() {
-            setLoading(true);
-            try {
-                const [invRes, histRes] = await Promise.all([
-                    fetch(inventorySheetUrl),
-                    fetch(historySheetUrl)
-                ]);
-                const invData = await invRes.text();
-                const histData = await histRes.text();
-                processInventoryCSV(invData);
-                processHistoryCSV(histData);
-                showToast("✅ Sinkronisasi Data Selesai");
-            } catch (error) {
-                console.error("Fetch Error:", error);
-                showToast("❌ Gagal Sinkronisasi Data");
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        function parseCSVLine(line) {
-            const pattern = /("([^"]*)"|([^,]+)|(?<=,|^)(?=,|$))/g;
-            const matches = line.match(pattern);
-            if (!matches) return [];
-            return matches.map(m => m.replace(/^"|"$/g, '').trim());
-        }
-
-        function processInventoryCSV(csvText) {
-            const lines = csvText.split(/\r?\n/);
-            const newInventory = [];
-            
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                
-                const values = parseCSVLine(lines[i]);
-                if (values.length < 3) continue;
-
-                const name = values[1] || "Tanpa Nama";
-                const existing = inventory.find(old => old.name === name);
-                
-                const cleanStockStr = (values[2] || "0").replace(/[^\d-]/g, '');
-                const stockValue = parseInt(cleanStockStr) || 0;
-
-                newInventory.push({
-                    id: values[0] || `item-${i}`,
-                    name: name,
-                    quantity: stockValue,
-                    unit: values[3] || 'Unit',
-                    category: values[4] || "Lainnya",
-                    image: (existing && existing.image) 
-                           ? existing.image 
-                           : `https://via.placeholder.com/400/f3f4f6/6366f1?text=${encodeURIComponent(name)}`
-                });
-            }
-            inventory = newInventory;
-            updateUI();
-        }
-
-        function processHistoryCSV(csvText) {
-            const lines = csvText.split(/\r?\n/);
-            const newHistory = [];
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const values = parseCSVLine(lines[i]);
-                if (values.length < 5) continue;
-                newHistory.push({
-                    time: values[0] || "-",
-                    nota: values[1] || "-",
-                    name: values[2] || "-",
-                    type: (values[3] || "").toUpperCase().includes("MASUK") ? "IN" : "OUT",
-                    amount: parseInt((values[4] || "0").replace(/[^\d-]/g, '')) || 0,
-                    unit: values[5] || ""
-                });
-            }
-            transactionHistory = newHistory.reverse(); 
-            document.getElementById('historyCount').textContent = `${transactionHistory.length} Records`;
-        }
-
-        // FUNGSI PENGELOLAAN FOTO
-        function triggerImageUpload() {
-            document.getElementById('imageInput').click();
-        }
-
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const item = inventory.find(i => i.id === selectedItemId);
-                if (item) {
-                    item.image = e.target.result; // Simpan base64 ke memori lokal
-                    document.getElementById('modalImg').src = e.target.result;
-                    renderInventory(); // Perbarui kartu di grid
-                    showToast("📸 Foto berhasil diperbarui");
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function removeImage() {
-            const item = inventory.find(i => i.id === selectedItemId);
-            if (item) {
-                // Kembalikan ke placeholder
-                item.image = `https://via.placeholder.com/400/f3f4f6/6366f1?text=${encodeURIComponent(item.name)}`;
-                document.getElementById('modalImg').src = item.image;
-                renderInventory();
-                showToast("🗑️ Foto telah dihapus");
-            }
-        }
-
-        function switchPage(pageId) {
-            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-link'));
-            currentPage = pageId;
-            const titleEl = document.getElementById('page-title');
-            const navEl = document.getElementById(`nav-${pageId}`);
-            if (navEl) navEl.classList.add('active-link');
-            
-            if (pageId === 'inventory') {
-                titleEl.textContent = "Data Inventori";
-                document.getElementById('page-inventory').classList.remove('hidden');
-                renderInventory();
-            } else if (pageId === 'stock-in' || pageId === 'stock-out') {
-                currentTransactionType = (pageId === 'stock-in') ? 'IN' : 'OUT';
-                titleEl.textContent = (pageId === 'stock-in') ? "Input Barang Masuk (+)" : "Input Barang Keluar (-)";
-                document.getElementById('page-transaction').classList.remove('hidden');
-                setupTransactionPage();
-            } else if (pageId === 'history') {
-                titleEl.textContent = "Riwayat Transaksi";
-                document.getElementById('page-history').classList.remove('hidden');
-                renderHistory();
-            }
-        }
-
-        function renderInventory(items = inventory) {
-            const grid = document.getElementById('inventoryGrid');
-            grid.innerHTML = '';
-            if (items.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-400 italic">Barang tidak ditemukan.</div>`;
-                return;
-            }
-            items.forEach(item => {
-                const card = document.createElement('div');
-                card.className = "bg-white rounded-[32px] shadow-sm border border-gray-100 p-2 overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col group";
-                card.onclick = () => openDetail(item.id);
-                card.innerHTML = `
-                    <div class="h-44 rounded-[24px] overflow-hidden bg-gray-50 relative">
-                        <img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
-                    </div>
-                    <div class="p-4 flex-grow">
-                        <h4 class="font-bold text-gray-800 text-sm mb-4 line-clamp-1 uppercase tracking-tight">${item.name}</h4>
-                        <div class="flex justify-between items-end border-t border-gray-50 pt-3">
-                            <div>
-                                <p class="text-2xl font-black text-indigo-600 leading-none">${item.quantity} <span class="text-[10px] font-medium text-gray-400 lowercase">${item.unit}</span></p>
-                            </div>
-                            <div class="bg-gray-50 p-2 rounded-xl group-hover:bg-indigo-50 transition-colors">
-                                <svg class="w-4 h-4 text-gray-300 group-hover:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-            updateStats();
-        }
-
-        function renderHistory() {
-            const body = document.getElementById('historyBody');
-            body.innerHTML = '';
-            if (transactionHistory.length === 0) {
-                body.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400 italic">Belum ada riwayat transaksi.</td></tr>`;
-                return;
-            }
-            transactionHistory.forEach(log => {
-                body.innerHTML += `
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 text-[11px] font-medium text-gray-400 whitespace-nowrap">${log.time}</td>
-                        <td class="px-6 py-4 font-mono text-[10px] font-bold text-gray-500">${log.nota}</td>
-                        <td class="px-6 py-4 font-black text-gray-800 text-xs">${log.name}</td>
-                        <td class="px-6 py-4 text-center">
-                            <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase ${log.type === 'IN' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                                ${log.type === 'IN' ? 'MASUK' : 'KELUAR'}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-right font-black text-xs ${log.type === 'IN' ? 'text-green-600' : 'text-red-600'}">
-                            ${log.type === 'IN' ? '+' : '-'}${log.amount} <span class="text-[9px] font-medium text-gray-400 uppercase">${log.unit}</span>
-                        </td>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                          <MoreVertical size={16} />
+                        </button>
+                      </td>
                     </tr>
-                `;
-            });
-        }
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">
+                      Tidak ada barang ditemukan.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-        function renderMiniLog() {
-            const mini = document.getElementById('miniLog');
-            mini.innerHTML = '';
-            transactionHistory.slice(0, 5).forEach(log => {
-                mini.innerHTML += `
-                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                        <div class="flex items-center gap-3">
-                            <div class="w-2 h-2 rounded-full ${log.type === 'IN' ? 'bg-green-500' : 'bg-red-500'}"></div>
-                            <div>
-                                <p class="text-[11px] font-bold text-gray-800 line-clamp-1 uppercase">${log.name}</p>
-                                <p class="text-[9px] text-gray-400">${log.time}</p>
-                            </div>
-                        </div>
-                        <p class="font-black text-xs ${log.type === 'IN' ? 'text-green-600' : 'text-red-600'}">${log.type === 'IN' ? '+' : '-'}${log.amount}</p>
-                    </div>
-                `;
-            });
-        }
+        {error && (
+          <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex gap-3 text-red-600 text-xs font-medium">
+            <AlertTriangle className="shrink-0" />
+            {error}
+          </div>
+        )}
+      </main>
 
-        function setupTransactionPage() {
-            const select = document.getElementById('itemSelect');
-            select.innerHTML = '<option value="">-- Pilih Barang --</option>';
-            inventory.forEach(item => {
-                select.innerHTML += `<option value="${item.id}">${item.name}</option>`;
-            });
-            const btn = document.getElementById('submitDirectBtn');
-            const title = document.getElementById('form-type-title');
-            if (currentTransactionType === 'IN') {
-                title.textContent = "Input Barang Masuk (+)";
-                btn.textContent = "Simpan Masuk";
-                btn.className = "w-full py-4 rounded-2xl font-black text-white shadow-lg bg-green-500 hover:bg-green-600 transition transform active:scale-95 uppercase tracking-wider";
-            } else {
-                title.textContent = "Input Barang Keluar (-)";
-                btn.textContent = "Simpan Keluar";
-                btn.className = "w-full py-4 rounded-2xl font-black text-white shadow-lg bg-red-500 hover:bg-red-600 transition transform active:scale-95 uppercase tracking-wider";
-            }
-            document.getElementById('previewItem').classList.add('hidden');
-            document.getElementById('directAmount').value = '';
-            renderMiniLog();
-        }
+      {/* Quick Info Bar */}
+      <footer className="max-w-7xl mx-auto px-4 pb-12">
+        <div className="bg-slate-100 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-200">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <LayoutDashboard size={14} />
+            Data disimpan di: <span className="font-mono bg-white px-2 py-0.5 rounded border border-slate-200">inventory_items</span>
+          </div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-tighter">
+            © 2024 StokMasterPro • Enterprise Inventory Control
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
 
-        document.getElementById('directTransForm').onsubmit = (e) => {
-            e.preventDefault();
-            const itemId = document.getElementById('itemSelect').value;
-            const amount = parseInt(document.getElementById('directAmount').value);
-            const item = inventory.find(i => i.id === itemId);
-            if (!item || isNaN(amount)) return;
-            
-            if (currentTransactionType === 'OUT' && amount > item.quantity) {
-                showToast("⚠️ Stok tidak mencukupi!");
-                return;
-            }
-            
-            if (currentTransactionType === 'IN') item.quantity += amount;
-            else item.quantity -= amount;
-            
-            const tempLog = {
-                time: new Date().toLocaleTimeString(),
-                nota: "TRX-" + Math.floor(Math.random() * 9000 + 1000),
-                name: item.name,
-                type: currentTransactionType,
-                amount: amount,
-                unit: item.unit
-            };
-            transactionHistory.unshift(tempLog);
-            showToast(`✅ Mencatat: ${item.name} (${amount} ${item.unit})`);
-            setupTransactionPage();
-            updateStats();
-        };
+// Komponen Pendukung
+function StatCard({ title, value, icon, color = "bg-white" }) {
+  return (
+    <div className={`${color} p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between`}>
+      <div>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p>
+        <p className="text-2xl font-black text-slate-800">{value}</p>
+      </div>
+      <div className="p-3 bg-white rounded-xl shadow-inner border border-slate-100">
+        {icon}
+      </div>
+    </div>
+  );
+}
 
-        document.getElementById('itemSelect').onchange = (e) => {
-            const item = inventory.find(i => i.id === e.target.value);
-            const preview = document.getElementById('previewItem');
-            if (item) {
-                preview.classList.remove('hidden');
-                document.getElementById('previewImg').src = item.image;
-                document.getElementById('previewName').textContent = item.name;
-                document.getElementById('previewStock').textContent = `Sisa: ${item.quantity} ${item.unit}`;
-            } else {
-                preview.classList.add('hidden');
-            }
-        };
+function InputGroup({ label, type = "text", value, onChange, placeholder, required = false }) {
+  return (
+    <div className="w-full">
+      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block tracking-wide">{label}</label>
+      <input 
+        type={type} 
+        required={required}
+        placeholder={placeholder}
+        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
 
-        function openDetail(id) {
-            const item = inventory.find(i => i.id === id);
-            if (!item) return;
-            selectedItemId = id;
-            document.getElementById('modalImg').src = item.image;
-            document.getElementById('modalTitle').textContent = item.name;
-            document.getElementById('modalCategoryInfo').textContent = `Kategori: ${item.category}`;
-            document.getElementById('modalStock').textContent = `${item.quantity} ${item.unit}`;
-            
-            const statusEl = document.getElementById('modalStatus');
-            if (item.quantity <= 0) {
-                statusEl.textContent = "Habis";
-                statusEl.className = "text-xs font-bold text-red-500 italic";
-            } else if (item.quantity <= 5) {
-                statusEl.textContent = "Stok Tipis";
-                statusEl.className = "text-xs font-bold text-orange-500 italic";
-            } else {
-                statusEl.textContent = "Tersedia";
-                statusEl.className = "text-xs font-bold text-green-600 italic";
-            }
-            
-            document.getElementById('detailModal').classList.remove('hidden');
-        }
+function StockBadge({ stock, min }) {
+  if (stock <= 0) return (
+    <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-700 rounded-md text-[10px] font-bold w-fit uppercase">
+      <AlertTriangle size={12} /> Habis
+    </span>
+  );
+  if (stock <= min) return (
+    <span className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 text-amber-700 rounded-md text-[10px] font-bold w-fit uppercase">
+      <TrendingDown size={12} /> Menipis
+    </span>
+  );
+  return (
+    <span className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-bold w-fit uppercase">
+      <CheckCircle size={12} /> Aman
+    </span>
+  );
+}
 
-        function closeModal() {
-            document.getElementById('detailModal').classList.add('hidden');
-            selectedItemId = null;
-        }
+function XCircle({ size }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" />
+    </svg>
+  );
+}
 
-        function goToTrans(type) {
-            const id = selectedItemId;
-            closeModal();
-            currentTransactionType = type;
-            switchPage(type === 'IN' ? 'stock-in' : 'stock-out');
-            setTimeout(() => {
-                document.getElementById('itemSelect').value = id;
-                document.getElementById('itemSelect').dispatchEvent(new Event('change'));
-            }, 100);
-        }
-
-        function setLoading(isLoading) {
-            const loader = document.getElementById('loadingOverlay');
-            const grid = document.getElementById('inventoryGrid');
-            const refreshIcon = document.getElementById('refreshIcon');
-            if (isLoading) {
-                loader.classList.remove('hidden');
-                grid.classList.add('hidden');
-                refreshIcon.classList.add('animate-spin');
-            } else {
-                loader.classList.add('hidden');
-                grid.classList.remove('hidden');
-                refreshIcon.classList.remove('animate-spin');
-            }
-        }
-
-        function updateStats() {
-            const totalItems = inventory.length;
-            const totalStock = inventory.reduce((acc, item) => acc + item.quantity, 0);
-            document.getElementById('totalItems').textContent = totalItems;
-            document.getElementById('totalStock').textContent = totalStock;
-            document.getElementById('stats').classList.remove('hidden');
-        }
-
-        function updateUI() {
-            if (currentPage === 'inventory') renderInventory();
-            else if (currentPage === 'history') renderHistory();
-            else setupTransactionPage();
-        }
-
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.classList.remove('translate-y-32', 'opacity-0');
-            setTimeout(() => toast.classList.add('translate-y-32', 'opacity-0'), 3000);
-        }
-
-        document.getElementById('searchInput').oninput = (e) => {
-            const term = e.target.value.toLowerCase();
-            const filtered = inventory.filter(item => 
-                item.name.toLowerCase().includes(term) ||
-                item.category.toLowerCase().includes(term)
-            );
-            renderInventory(filtered);
-        };
-
-        window.onload = fetchAllData;
-        window.onclick = (e) => { if (e.target == document.getElementById('detailModal')) closeModal(); }
-    </script>
-</body>
-</html>
+function PlusCircle({ size, className }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" />
+    </svg>
+  );
+}
