@@ -3,154 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stok Master Pro - Control Panel</title>
+    <title>VIPRINTING - Stok Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        .fade-in { animation: fadeIn 0.5s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+        .card-anim { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-anim:hover { transform: translateY(-4px); shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen text-gray-800">
+<body class="bg-slate-50 min-h-screen">
 
-    <div class="max-w-5xl mx-auto p-4 md:p-10">
-        <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-900">Stok Master Pro</h1>
-                <p class="text-gray-500">Manajemen Inventaris Real-time</p>
+    <div class="max-w-7xl mx-auto px-4 py-8 md:py-12">
+        <header class="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
+            <div class="space-y-1">
+                <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight">VIPRINTING <span class="text-indigo-600">STOK</span></h1>
+                <p class="text-slate-500 font-medium">Sistem Manajemen Inventaris Digital</p>
             </div>
-            <div class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
-                Status: <span id="db-status">Menghubungkan...</span>
+            <div id="status-pill" class="inline-flex items-center px-4 py-2 rounded-2xl bg-white border border-slate-200 shadow-sm transition-all">
+                <span class="relative flex h-3 w-3 mr-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-yellow-500" id="status-dot"></span>
+                </span>
+                <span class="text-sm font-bold text-slate-700" id="status-text">Menghubungkan...</span>
             </div>
-        </div>
+        </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-10">
-                    <h2 class="text-lg font-semibold mb-4">Tambah Barang Baru</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Barang</label>
-                            <input type="text" id="itemName" placeholder="Contoh: Kertas A4" 
-                                class="w-full border border-gray-200 p-2.5 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <aside class="lg:col-span-4 space-y-6">
+                <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 sticky top-8">
+                    <h2 class="text-xl font-extrabold text-slate-900 mb-6 flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        Tambah Barang
+                    </h2>
+                    
+                    <div class="space-y-5">
+                        <div class="group">
+                            <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Nama Produk</label>
+                            <input type="text" id="itemName" placeholder="Kertas Ivory 230gr" 
+                                class="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Stok</label>
+
+                        <div class="group">
+                            <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Jumlah Stok</label>
                             <input type="number" id="itemStock" placeholder="0" 
-                                class="w-full border border-gray-200 p-2.5 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                                class="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold">
                         </div>
-                        <button onclick="addItem()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shadow-md shadow-blue-100">
-                            Simpan ke Database
+
+                        <div class="group">
+                            <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Foto Barang</label>
+                            <div class="relative group cursor-pointer">
+                                <input type="file" id="itemFile" accept="image/*" class="hidden" onchange="previewImage(this)">
+                                <label for="itemFile" class="flex flex-col items-center justify-center w-full h-32 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl hover:bg-slate-100 hover:border-indigo-300 transition-all cursor-pointer overflow-hidden">
+                                    <div id="preview-container" class="flex flex-col items-center">
+                                        <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                        <span class="text-xs font-bold text-slate-400 uppercase tracking-tighter">Pilih Gambar</span>
+                                    </div>
+                                    <img id="img-preview" class="hidden w-full h-full object-cover">
+                                </label>
+                            </div>
+                        </div>
+
+                        <button id="btnSimpan" onclick="addItem()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-5 rounded-2xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
+                            <span>Simpan ke Database</span>
                         </button>
                     </div>
                 </div>
-            </div>
+            </aside>
 
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <table class="w-full text-left">
-                        <thead class="bg-gray-50 border-b border-gray-100">
-                            <tr>
-                                <th class="px-6 py-4 text-sm font-semibold text-gray-600">Nama Barang</th>
-                                <th class="px-6 py-4 text-sm font-semibold text-gray-600">Stok</th>
-                                <th class="px-6 py-4 text-sm font-semibold text-gray-600 text-right">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventoryTable" class="divide-y divide-gray-50">
-                            </tbody>
-                    </table>
-                    <div id="loader" class="p-10 text-center text-gray-400">Memuat data...</div>
+            <main class="lg:col-span-8">
+                <div class="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50/50 border-b border-slate-100">
+                                    <th class="px-8 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-widest">Detail Produk</th>
+                                    <th class="px-8 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-widest">Ketersediaan</th>
+                                    <th class="px-8 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-widest text-right">Manajemen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTable" class="divide-y divide-slate-50">
+                                </tbody>
+                        </table>
+                    </div>
+                    <div id="loader" class="p-20 text-center">
+                        <div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
+                        <p class="text-slate-400 font-bold text-sm uppercase tracking-widest">Sinkronisasi Data...</p>
+                    </div>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-        // Konfigurasi Anda
+        // Konfigurasi Project Baru: stok-viprinting
         const firebaseConfig = {
-            apiKey: "AIzaSyCpvlQvDoKyPiiXbe_S9Cyod6xngcNIyrM",
-            authDomain: "stokmasterpro.firebaseapp.com",
-            projectId: "stokmasterpro",
-            storageBucket: "stokmasterpro.firebasestorage.app",
-            messagingSenderId: "173852334756",
-            appId: "1:173852334756:web:8826a78a85ca1f81ef2431"
+            apiKey: "AIzaSyDrksoqCRxlO-qyi0CrCQeDP4SmO1Mjt9k",
+            authDomain: "stok-viprinting.firebaseapp.com",
+            projectId: "stok-viprinting",
+            storageBucket: "stok-viprinting.firebasestorage.app",
+            messagingSenderId: "646597328359",
+            appId: "1:646597328359:web:c6ed435aee8d00a38b9142"
         };
 
-        // Inisialisasi Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const storage = getStorage(app);
         const colRef = collection(db, "stok_barang");
 
-        document.getElementById('db-status').innerText = "Terhubung";
+        // Status Koneksi
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+        statusText.innerText = "Sistem Online";
+        statusDot.className = "relative inline-flex rounded-full h-3 w-3 bg-emerald-500";
 
-        // Fungsi Tambah Barang (Otomatis buat path/collection jika belum ada)
-        window.addItem = async () => {
-            const name = document.getElementById('itemName').value;
-            const stock = parseInt(document.getElementById('itemStock').value);
-
-            if (name && !isNaN(stock)) {
-                try {
-                    await addDoc(colRef, {
-                        name: name,
-                        stock: stock,
-                        updatedAt: serverTimestamp()
-                    });
-                    document.getElementById('itemName').value = '';
-                    document.getElementById('itemStock').value = '';
-                } catch (e) {
-                    console.error("Error menambahkan dokumen: ", e);
+        // Preview Gambar Sebelum Upload
+        window.previewImage = (input) => {
+            const preview = document.getElementById('img-preview');
+            const container = document.getElementById('preview-container');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                    container.classList.add('hidden');
                 }
-            } else {
-                alert("Mohon isi nama dan jumlah stok dengan benar.");
+                reader.readAsDataURL(input.files[0]);
             }
         };
 
-        // Baca Data Secara Real-time (Otomatis Update Tampilan)
+        // Fungsi Tambah Barang
+        window.addItem = async () => {
+            const name = document.getElementById('itemName').value;
+            const stock = parseInt(document.getElementById('itemStock').value);
+            const file = document.getElementById('itemFile').files[0];
+            const btn = document.getElementById('btnSimpan');
+
+            if (!name || isNaN(stock)) return alert("Mohon lengkapi data barang!");
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-spin mr-2">◌</span> Mengunggah...`;
+
+            try {
+                let imageUrl = "";
+                if (file) {
+                    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+                    const snapshot = await uploadBytes(storageRef, file);
+                    imageUrl = await getDownloadURL(snapshot.ref);
+                }
+
+                await addDoc(colRef, {
+                    name,
+                    stock,
+                    image: imageUrl,
+                    updatedAt: serverTimestamp()
+                });
+
+                // Reset
+                document.getElementById('itemName').value = '';
+                document.getElementById('itemStock').value = '';
+                document.getElementById('itemFile').value = '';
+                document.getElementById('img-preview').classList.add('hidden');
+                document.getElementById('preview-container').classList.remove('hidden');
+                alert("Barang berhasil disimpan!");
+            } catch (e) {
+                alert("Gagal: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = "Simpan ke Database";
+            }
+        };
+
+        // Render Data Real-time
         const q = query(colRef, orderBy("updatedAt", "desc"));
         onSnapshot(q, (snapshot) => {
             const table = document.getElementById('inventoryTable');
-            const loader = document.getElementById('loader');
+            document.getElementById('loader').classList.add('hidden');
             table.innerHTML = '';
-            loader.classList.add('hidden');
 
             snapshot.forEach(docSnap => {
                 const item = docSnap.data();
                 const id = docSnap.id;
                 
-                const row = `
-                    <tr class="hover:bg-blue-50/30 transition fade-in">
-                        <td class="px-6 py-4 font-medium text-gray-900">${item.name}</td>
-                        <td class="px-6 py-4">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${item.stock <= 5 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
-                                ${item.stock} unit
+                table.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-8 py-5">
+                            <div class="flex items-center gap-5">
+                                <div class="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm flex-shrink-0">
+                                    <img src="${item.image || 'https://via.placeholder.com/100?text=No+Image'}" class="w-full h-full object-cover">
+                                </div>
+                                <span class="font-bold text-slate-800 text-lg">${item.name}</span>
+                            </div>
+                        </td>
+                        <td class="px-8 py-5">
+                            <span class="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-extrabold ${item.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}">
+                                ${item.stock} Unit
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-right space-x-2">
-                            <button onclick="updateStock('${id}', ${item.stock + 1})" class="bg-white border border-gray-200 px-3 py-1 rounded-lg hover:bg-gray-50 text-green-600 font-bold shadow-sm">+</button>
-                            <button onclick="updateStock('${id}', ${item.stock - 1})" class="bg-white border border-gray-200 px-3 py-1 rounded-lg hover:bg-gray-50 text-red-600 font-bold shadow-sm">-</button>
-                            <button onclick="deleteItem('${id}')" class="ml-4 text-sm text-gray-400 hover:text-red-500 font-medium">Hapus</button>
+                        <td class="px-8 py-5 text-right space-x-2">
+                            <button onclick="updateStock('${id}', ${item.stock + 1})" class="w-10 h-10 rounded-xl bg-white border border-slate-200 text-emerald-600 shadow-sm hover:border-emerald-500 hover:bg-emerald-50 transition-all font-bold">+</button>
+                            <button onclick="updateStock('${id}', ${item.stock - 1})" class="w-10 h-10 rounded-xl bg-white border border-slate-200 text-rose-600 shadow-sm hover:border-rose-500 hover:bg-rose-50 transition-all font-bold">-</button>
+                            <button onclick="deleteItem('${id}')" class="ml-4 text-slate-300 hover:text-rose-500 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
                         </td>
                     </tr>
                 `;
-                table.innerHTML += row;
             });
         });
 
-        // Update Stok
         window.updateStock = async (id, newStock) => {
             if (newStock < 0) return;
-            const docRef = doc(db, "stok_barang", id);
-            await updateDoc(docRef, { 
-                stock: newStock,
-                updatedAt: serverTimestamp()
-            });
+            await updateDoc(doc(db, "stok_barang", id), { stock: newStock, updatedAt: serverTimestamp() });
         };
 
-        // Hapus Item
         window.deleteItem = async (id) => {
-            if (confirm("Apakah Anda yakin ingin menghapus barang ini?")) {
+            if (confirm("Hapus item ini selamanya?")) {
                 await deleteDoc(doc(db, "stok_barang", id));
             }
         };
