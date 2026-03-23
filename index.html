@@ -24,6 +24,9 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col md:flex-row">
 
+    <!-- Input File Tersembunyi untuk Upload Foto -->
+    <input type="file" id="imageInput" class="hidden" accept="image/*" onchange="handleImageUpload(event)">
+
     <!-- Navigasi Sidebar -->
     <aside class="w-full md:w-64 bg-indigo-900 text-white flex-shrink-0 z-50 shadow-xl">
         <div class="p-6">
@@ -53,7 +56,7 @@
             </button>
         </nav>
         <div class="mt-10 px-8 py-4 border-t border-indigo-800 text-[10px] text-indigo-400 uppercase font-bold tracking-widest">
-            Sistem Kontrol Stok v2.6
+            Sistem Kontrol Stok v3.3
         </div>
     </aside>
 
@@ -79,7 +82,7 @@
             <!-- HALAMAN: Inventori -->
             <section id="page-inventory" class="page-content">
                 <div class="mb-6 relative max-w-2xl">
-                    <input type="text" id="searchInput" placeholder="Cari nama barang atau kategori..." 
+                    <input type="text" id="searchInput" placeholder="Cari nama barang..." 
                         class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm transition-all">
                     <svg class="w-5 h-5 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -88,12 +91,10 @@
 
                 <div id="loadingOverlay" class="flex flex-col items-center justify-center py-20">
                     <div class="loader mb-4"></div>
-                    <p class="text-gray-500 text-sm italic">Menyinkronkan data dengan Google Sheets...</p>
+                    <p class="text-gray-500 text-sm italic">Sinkronisasi data stok...</p>
                 </div>
 
-                <div id="inventoryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden">
-                    <!-- Item akan muncul di sini -->
-                </div>
+                <div id="inventoryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden"></div>
             </section>
 
             <!-- HALAMAN: Transaksi -->
@@ -122,12 +123,11 @@
                                 </div>
                                 <button type="submit" id="submitDirectBtn" class="w-full py-4 rounded-2xl font-black text-white shadow-lg transition transform active:scale-95 uppercase tracking-wider"></button>
                             </form>
-                            <p class="mt-4 text-[9px] text-gray-400 text-center italic leading-tight">*Catatan: Transaksi ini hanya simulasi sesi sebelum disinkronkan ke cloud.</p>
                         </div>
                     </div>
                     <div class="md:col-span-3 space-y-4">
                          <div id="recentActivityBox" class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-                             <h4 class="text-xs font-black text-gray-400 uppercase mb-4 tracking-widest">Aktivitas Terakhir (Cloud)</h4>
+                             <h4 class="text-xs font-black text-gray-400 uppercase mb-4 tracking-widest">Aktivitas Terakhir</h4>
                              <div id="miniLog" class="space-y-3"></div>
                          </div>
                     </div>
@@ -138,7 +138,7 @@
             <section id="page-history" class="page-content hidden">
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
                     <div class="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                        <h3 class="font-black text-gray-800 uppercase tracking-tighter italic">Log Transaksi (Google Sheets)</h3>
+                        <h3 class="font-black text-gray-800 uppercase tracking-tighter italic">Log Transaksi (Sheet Riwayat)</h3>
                         <div class="flex gap-2">
                             <span id="historyCount" class="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold uppercase tracking-widest">0 Records</span>
                         </div>
@@ -165,20 +165,25 @@
     <!-- MODAL: Detail Produk -->
     <div id="detailModal" class="fixed inset-0 z-[100] modal-bg flex items-center justify-center p-4 hidden">
         <div class="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
+            <!-- Area Gambar dengan Overlay Kontrol -->
             <div class="w-full md:w-1/2 bg-gray-100 relative group">
                 <img id="modalImg" src="" class="w-full h-full object-cover min-h-[300px]" alt="Produk">
-                <div class="absolute bottom-4 left-4 right-4">
-                    <label class="block w-full bg-white/90 backdrop-blur hover:bg-white text-indigo-600 text-[10px] font-bold uppercase py-4 rounded-2xl cursor-pointer text-center shadow-lg transition">
-                        Ganti Foto Produk (Manual)
-                        <input type="file" id="uploadPhoto" class="hidden" accept="image/*">
-                    </label>
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                    <button onclick="triggerImageUpload()" class="bg-white/90 hover:bg-white text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        Ganti Foto
+                    </button>
+                    <button onclick="removeImage()" class="bg-red-500/90 hover:bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Hapus Foto
+                    </button>
                 </div>
             </div>
             <div class="w-full md:w-1/2 p-8 flex flex-col">
                 <div class="flex justify-between items-start mb-6">
                     <div>
-                        <span id="modalCategory" class="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-md">Kategori</span>
-                        <h2 id="modalTitle" class="text-2xl font-black text-gray-800 mt-2 leading-tight">Nama Produk</h2>
+                        <h2 id="modalTitle" class="text-2xl font-black text-gray-800 leading-tight">Nama Produk</h2>
+                        <p id="modalCategoryInfo" class="text-[10px] text-gray-400 uppercase font-bold mt-1"></p>
                     </div>
                     <button onclick="closeModal()" class="text-gray-300 hover:text-gray-800 transition">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -186,20 +191,22 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-8">
-                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                        <p class="text-[9px] font-black text-gray-400 uppercase">Tersedia</p>
-                        <p id="modalStock" class="text-xl font-black text-indigo-600">0 Unit</p>
+                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
+                        <p class="text-[9px] font-black text-gray-400 uppercase">Stok Saat Ini</p>
+                        <p id="modalStock" class="text-2xl font-black text-indigo-600">0 Unit</p>
                     </div>
-                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
                         <p class="text-[9px] font-black text-gray-400 uppercase">Status</p>
-                        <p id="modalStatus" class="text-xs font-bold text-gray-600 italic">Aktif</p>
+                        <p id="modalStatus" class="text-xs font-bold text-green-600 italic">Tersedia</p>
                     </div>
                 </div>
 
                 <div class="mt-auto space-y-3">
-                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Tindakan Cepat</p>
-                    <button onclick="goToTrans('IN')" class="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg transition uppercase tracking-wider text-xs">Tambah Stok (+)</button>
-                    <button onclick="goToTrans('OUT')" class="w-full py-4 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl shadow-lg transition uppercase tracking-wider text-xs">Kurangi Stok (-)</button>
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Aksi Stok</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="goToTrans('IN')" class="py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg transition uppercase tracking-wider text-[10px]">Tambah (+)</button>
+                        <button onclick="goToTrans('OUT')" class="py-4 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl shadow-lg transition uppercase tracking-wider text-[10px]">Kurangi (-)</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -211,6 +218,7 @@
     </div>
 
     <script>
+        // URL Publik CSV dari Google Sheets
         const inventorySheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHOTu24z6EptkQvIzgCfmncxu_H1Dw1pl8874CGTxgZvLZPVXqdNFDFox9SGTTH2wHdbs1hpJWDqb2/pub?gid=838278372&single=true&output=csv";
         const historySheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHOTu24z6EptkQvIzgCfmncxu_H1Dw1pl8874CGTxgZvLZPVXqdNFDFox9SGTTH2wHdbs1hpJWDqb2/pub?gid=1513062448&single=true&output=csv";
         
@@ -233,30 +241,45 @@
                 processHistoryCSV(histData);
                 showToast("✅ Sinkronisasi Data Selesai");
             } catch (error) {
+                console.error("Fetch Error:", error);
                 showToast("❌ Gagal Sinkronisasi Data");
             } finally {
                 setLoading(false);
             }
         }
 
+        function parseCSVLine(line) {
+            const pattern = /("([^"]*)"|([^,]+)|(?<=,|^)(?=,|$))/g;
+            const matches = line.match(pattern);
+            if (!matches) return [];
+            return matches.map(m => m.replace(/^"|"$/g, '').trim());
+        }
+
         function processInventoryCSV(csvText) {
-            const lines = csvText.split('\n');
+            const lines = csvText.split(/\r?\n/);
             const newInventory = [];
+            
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                
+                const values = parseCSVLine(lines[i]);
                 if (values.length < 3) continue;
+
                 const name = values[1] || "Tanpa Nama";
                 const existing = inventory.find(old => old.name === name);
+                
+                const cleanStockStr = (values[2] || "0").replace(/[^\d-]/g, '');
+                const stockValue = parseInt(cleanStockStr) || 0;
+
                 newInventory.push({
-                    id: `stok-${i}`,
+                    id: values[0] || `item-${i}`,
                     name: name,
-                    category: values[2] || "Lainnya",
-                    quantity: parseInt(values[3]) || 0,
-                    unit: values[4] || 'Unit',
-                    image: (existing && existing.image && !existing.image.includes('placeholder')) 
+                    quantity: stockValue,
+                    unit: values[3] || 'Unit',
+                    category: values[4] || "Lainnya",
+                    image: (existing && existing.image) 
                            ? existing.image 
-                           : `https://via.placeholder.com/300/f3f4f6/6366f1?text=${encodeURIComponent(name)}`
+                           : `https://via.placeholder.com/400/f3f4f6/6366f1?text=${encodeURIComponent(name)}`
                 });
             }
             inventory = newInventory;
@@ -264,23 +287,56 @@
         }
 
         function processHistoryCSV(csvText) {
-            const lines = csvText.split('\n');
+            const lines = csvText.split(/\r?\n/);
             const newHistory = [];
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                const values = parseCSVLine(lines[i]);
                 if (values.length < 5) continue;
                 newHistory.push({
                     time: values[0] || "-",
                     nota: values[1] || "-",
                     name: values[2] || "-",
                     type: (values[3] || "").toUpperCase().includes("MASUK") ? "IN" : "OUT",
-                    amount: parseInt(values[4]) || 0,
+                    amount: parseInt((values[4] || "0").replace(/[^\d-]/g, '')) || 0,
                     unit: values[5] || ""
                 });
             }
             transactionHistory = newHistory.reverse(); 
             document.getElementById('historyCount').textContent = `${transactionHistory.length} Records`;
+        }
+
+        // FUNGSI PENGELOLAAN FOTO
+        function triggerImageUpload() {
+            document.getElementById('imageInput').click();
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const item = inventory.find(i => i.id === selectedItemId);
+                if (item) {
+                    item.image = e.target.result; // Simpan base64 ke memori lokal
+                    document.getElementById('modalImg').src = e.target.result;
+                    renderInventory(); // Perbarui kartu di grid
+                    showToast("📸 Foto berhasil diperbarui");
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage() {
+            const item = inventory.find(i => i.id === selectedItemId);
+            if (item) {
+                // Kembalikan ke placeholder
+                item.image = `https://via.placeholder.com/400/f3f4f6/6366f1?text=${encodeURIComponent(item.name)}`;
+                document.getElementById('modalImg').src = item.image;
+                renderInventory();
+                showToast("🗑️ Foto telah dihapus");
+            }
         }
 
         function switchPage(pageId) {
@@ -290,13 +346,14 @@
             const titleEl = document.getElementById('page-title');
             const navEl = document.getElementById(`nav-${pageId}`);
             if (navEl) navEl.classList.add('active-link');
+            
             if (pageId === 'inventory') {
                 titleEl.textContent = "Data Inventori";
                 document.getElementById('page-inventory').classList.remove('hidden');
                 renderInventory();
             } else if (pageId === 'stock-in' || pageId === 'stock-out') {
                 currentTransactionType = (pageId === 'stock-in') ? 'IN' : 'OUT';
-                titleEl.textContent = (pageId === 'stock-in') ? "Barang Masuk (+)" : "Barang Keluar (-)";
+                titleEl.textContent = (pageId === 'stock-in') ? "Input Barang Masuk (+)" : "Input Barang Keluar (-)";
                 document.getElementById('page-transaction').classList.remove('hidden');
                 setupTransactionPage();
             } else if (pageId === 'history') {
@@ -310,7 +367,7 @@
             const grid = document.getElementById('inventoryGrid');
             grid.innerHTML = '';
             if (items.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-10 text-center text-gray-400 italic">Tidak ada barang ditemukan</div>`;
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-400 italic">Barang tidak ditemukan.</div>`;
                 return;
             }
             items.forEach(item => {
@@ -322,14 +379,10 @@
                         <img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
                     </div>
                     <div class="p-4 flex-grow">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-[9px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md">${item.category}</span>
-                        </div>
                         <h4 class="font-bold text-gray-800 text-sm mb-4 line-clamp-1 uppercase tracking-tight">${item.name}</h4>
                         <div class="flex justify-between items-end border-t border-gray-50 pt-3">
                             <div>
-                                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Tersedia</p>
-                                <p class="text-xl font-black text-indigo-600 leading-none">${item.quantity} <span class="text-[10px] font-medium text-gray-400 lowercase">${item.unit}</span></p>
+                                <p class="text-2xl font-black text-indigo-600 leading-none">${item.quantity} <span class="text-[10px] font-medium text-gray-400 lowercase">${item.unit}</span></p>
                             </div>
                             <div class="bg-gray-50 p-2 rounded-xl group-hover:bg-indigo-50 transition-colors">
                                 <svg class="w-4 h-4 text-gray-300 group-hover:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -346,7 +399,7 @@
             const body = document.getElementById('historyBody');
             body.innerHTML = '';
             if (transactionHistory.length === 0) {
-                body.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400 italic">Data riwayat cloud tidak tersedia</td></tr>`;
+                body.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400 italic">Belum ada riwayat transaksi.</td></tr>`;
                 return;
             }
             transactionHistory.forEach(log => {
@@ -371,10 +424,6 @@
         function renderMiniLog() {
             const mini = document.getElementById('miniLog');
             mini.innerHTML = '';
-            if (transactionHistory.length === 0) {
-                mini.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-4">Data riwayat kosong...</p>`;
-                return;
-            }
             transactionHistory.slice(0, 5).forEach(log => {
                 mini.innerHTML += `
                     <div class="flex justify-between items-center p-3 bg-gray-50 rounded-2xl border border-gray-100">
@@ -382,7 +431,7 @@
                             <div class="w-2 h-2 rounded-full ${log.type === 'IN' ? 'bg-green-500' : 'bg-red-500'}"></div>
                             <div>
                                 <p class="text-[11px] font-bold text-gray-800 line-clamp-1 uppercase">${log.name}</p>
-                                <p class="text-[9px] text-gray-400">${log.time} • ${log.nota}</p>
+                                <p class="text-[9px] text-gray-400">${log.time}</p>
                             </div>
                         </div>
                         <p class="font-black text-xs ${log.type === 'IN' ? 'text-green-600' : 'text-red-600'}">${log.type === 'IN' ? '+' : '-'}${log.amount}</p>
@@ -400,12 +449,12 @@
             const btn = document.getElementById('submitDirectBtn');
             const title = document.getElementById('form-type-title');
             if (currentTransactionType === 'IN') {
-                title.textContent = "Barang Masuk (+)";
-                btn.textContent = "Simpan Barang Masuk";
+                title.textContent = "Input Barang Masuk (+)";
+                btn.textContent = "Simpan Masuk";
                 btn.className = "w-full py-4 rounded-2xl font-black text-white shadow-lg bg-green-500 hover:bg-green-600 transition transform active:scale-95 uppercase tracking-wider";
             } else {
-                title.textContent = "Barang Keluar (-)";
-                btn.textContent = "Simpan Barang Keluar";
+                title.textContent = "Input Barang Keluar (-)";
+                btn.textContent = "Simpan Keluar";
                 btn.className = "w-full py-4 rounded-2xl font-black text-white shadow-lg bg-red-500 hover:bg-red-600 transition transform active:scale-95 uppercase tracking-wider";
             }
             document.getElementById('previewItem').classList.add('hidden');
@@ -419,22 +468,25 @@
             const amount = parseInt(document.getElementById('directAmount').value);
             const item = inventory.find(i => i.id === itemId);
             if (!item || isNaN(amount)) return;
+            
             if (currentTransactionType === 'OUT' && amount > item.quantity) {
                 showToast("⚠️ Stok tidak mencukupi!");
                 return;
             }
+            
             if (currentTransactionType === 'IN') item.quantity += amount;
             else item.quantity -= amount;
+            
             const tempLog = {
-                time: "Baru saja",
-                nota: "TEMP-" + Math.floor(Math.random() * 1000),
+                time: new Date().toLocaleTimeString(),
+                nota: "TRX-" + Math.floor(Math.random() * 9000 + 1000),
                 name: item.name,
                 type: currentTransactionType,
                 amount: amount,
                 unit: item.unit
             };
             transactionHistory.unshift(tempLog);
-            showToast(`✅ Mencatat ${item.name} (${currentTransactionType === 'IN' ? 'Masuk' : 'Keluar'})`);
+            showToast(`✅ Mencatat: ${item.name} (${amount} ${item.unit})`);
             setupTransactionPage();
             updateStats();
         };
@@ -458,8 +510,21 @@
             selectedItemId = id;
             document.getElementById('modalImg').src = item.image;
             document.getElementById('modalTitle').textContent = item.name;
-            document.getElementById('modalCategory').textContent = item.category;
+            document.getElementById('modalCategoryInfo').textContent = `Kategori: ${item.category}`;
             document.getElementById('modalStock').textContent = `${item.quantity} ${item.unit}`;
+            
+            const statusEl = document.getElementById('modalStatus');
+            if (item.quantity <= 0) {
+                statusEl.textContent = "Habis";
+                statusEl.className = "text-xs font-bold text-red-500 italic";
+            } else if (item.quantity <= 5) {
+                statusEl.textContent = "Stok Tipis";
+                statusEl.className = "text-xs font-bold text-orange-500 italic";
+            } else {
+                statusEl.textContent = "Tersedia";
+                statusEl.className = "text-xs font-bold text-green-600 italic";
+            }
+            
             document.getElementById('detailModal').classList.remove('hidden');
         }
 
@@ -518,7 +583,7 @@
         document.getElementById('searchInput').oninput = (e) => {
             const term = e.target.value.toLowerCase();
             const filtered = inventory.filter(item => 
-                item.name.toLowerCase().includes(term) || 
+                item.name.toLowerCase().includes(term) ||
                 item.category.toLowerCase().includes(term)
             );
             renderInventory(filtered);
